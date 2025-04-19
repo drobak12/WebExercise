@@ -4,24 +4,55 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Workout App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --gradient-start: #ff6b6b;
+      --gradient-end: #ffe66d;
+      --primary: #ff6b6b;
+      --accent: #bfa2db;
+      --highlight: #bfa2db;
+      --bg: #fffaf0;
+      --text: #2e2e2e;
+      --neutral: #f0f0f0;
+    }
+
     body {
-      font-family: sans-serif;
-      background: #f4f4f4;
-      padding: 1rem;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to bottom, var(--gradient-start), var(--gradient-end));
+      color: var(--text);
       margin: 0;
+      padding: 2rem;
       text-align: center;
     }
+
     h1 {
+      font-size: 2.5rem;
       margin-bottom: 1rem;
+      color: var(--text);
       cursor: pointer;
-      color: #2c3e50;
     }
+
     select, input, button {
-      font-size: 1.2rem;
-      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      padding: 0.75rem 1rem;
       margin: 0.5rem 0;
+      border-radius: 0.5rem;
+      border: 1px solid #ccc;
     }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #ff4b4b;
+    }
+
     .series-list {
       display: flex;
       flex-wrap: wrap;
@@ -29,42 +60,43 @@
       gap: 0.5rem;
       margin: 1rem 0;
     }
+
     .series-item {
+      background: var(--neutral);
       padding: 0.5rem 0.75rem;
-      background: #ddd;
       border-radius: 0.5rem;
       min-width: 40px;
-      position: relative;
     }
+
     .active {
-      background: #4caf50;
+      background: var(--accent);
       color: white;
       font-weight: bold;
     }
+
     .message {
       font-size: 1.5rem;
       margin: 2rem 0 1rem;
     }
-    .message .line1 {
-      display: block;
-      font-size: 1.2rem;
+
+    .message .line1, .line3 {
+      font-size: 1.1rem;
     }
+
     .message .line2 {
-      display: block;
-      font-size: 2.5rem;
+      font-size: 2.2rem;
       font-weight: bold;
-      margin: 0.3rem 0;
     }
-    .message .line3 {
-      display: block;
-      font-size: 1.2rem;
-    }
+
     .hidden {
       display: none;
     }
+
     .feedback-buttons button {
       margin: 0.5rem;
+      background-color: var(--accent);
     }
+
     .progress-bar-container {
       width: 100%;
       height: 20px;
@@ -73,37 +105,46 @@
       overflow: hidden;
       margin: 1rem 0;
     }
+
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #4caf50;
+      background: var(--highlight);
       transition: width 0.3s ease;
     }
-    #series-timer {
-      font-size: 1.2rem;
-      margin-top: 1rem;
-      color: #555;
-    }
-    #total-time, #live-total-time, #summary-info {
-      font-size: 1.2rem;
+
+    #series-timer, #total-time, #live-total-time, #summary-info {
+      font-size: 1rem;
       margin-top: 0.5rem;
-      color: #333;
     }
+
     #feedback-question {
-      font-size: 1.4rem;
+      font-size: 1.3rem;
       margin: 1.5rem 0 1rem;
       font-weight: 500;
     }
+
     footer {
-          font-size: 0.9rem;
-          color: #777;
-          position: fixed;
-          bottom: 10px;
-          right: 10px;
-          text-align: right;
-        }
+      font-size: 0.9rem;
+      color: #777;
+      margin-top: 3rem;
+    }
+
+  .info-bar {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    background-color: var(--neutral);
+    padding: 1rem;
+    border-radius: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    font-size: 1.1rem;
+  }
+
   </style>
 </head>
+
 <body>
 
 <h1 onclick="goHome()">Workout App</h1>
@@ -119,12 +160,15 @@
 </div>
 
 <div id="workout-screen" class="hidden">
-  <div>Level: <span id="current-level"></span></div>
-  <div>Series: <span id="total-series"></span></div>
-  <div>Total reps: <span id="total-reps"></span></div>
+<div class="info-bar">
+  <div><strong>Level:</strong> <span id="current-level"></span></div>
+  <div><strong>Series:</strong> <span id="total-series"></span></div>
+  <div><strong>Total reps:</strong> <span id="total-reps"></span></div>
+</div>
+
   <div id="live-total-time"></div>
 
-  <div class="progress-bar-container">
+  <div class="progress-bar-container hidden">
     <div class="progress-bar" id="progress-bar"></div>
   </div>
 
@@ -196,6 +240,8 @@ function startWorkout() {
   reps = workout.getSeries(level);
   currentSeries = 0;
   workoutStartTime = Date.now();
+  liveTotalTimeEl.textContent = "Workout time: 0s";
+
 
   currentLevelEl.textContent = level;
   totalSeriesEl.textContent = reps.length;
@@ -307,15 +353,16 @@ function endWorkout() {
 }
 
 function showMessage(msg) {
-  if (typeof msg === 'number') {
-    message.innerHTML = `
-      <span class="line1">Please complete</span>
-      <span class="line2">${msg}</span>
-      <span class="line3">repetitions</span>
-    `;
-  } else {
-    message.textContent = msg;
-  }
+const message = document.getElementById("message");
+    if (typeof msg === 'number') {
+      message.innerHTML = `
+        <span class="line1">Please complete</span><br />
+        <span class="line2">${msg}</span><br />
+        <span class="line3">repetitions</span>
+      `;
+    } else {
+      message.textContent = msg;
+    }
 }
 
 function playBeep() {
