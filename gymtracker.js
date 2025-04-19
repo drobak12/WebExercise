@@ -128,6 +128,9 @@ function startRest() {
 
   function finishRest(){
     clearInterval(restTimerID);
+    playBeep();
+    vibrate();
+
     restMessage.classList.add("hidden");
     btn.remove();
     infoSummaryEl.style.display = "block";
@@ -165,5 +168,23 @@ function hideActionButtons(){ actionButtons.style.display="none"; }
 function showActionButtons(){ actionButtons.style.display="flex"; }
 
 // ---------- Beep / Vibrate ----------
-function playBeep(){ if(localStorage.getItem("workoutSound")!="1")return; const a=new(window.AudioContext||window.webkitAudioContext)(); const o=a.createOscillator(); o.type="sine"; o.frequency.setValueAtTime(1000,a.currentTime); o.connect(a.destination); o.start(); o.stop(a.currentTime+0.2); }
-function vibrate(){ if(localStorage.getItem("workoutVibrate")==="1"&&navigator.vibrate) navigator.vibrate(500);}
+function playBeep() {
+  const soundEnabled = localStorage.getItem("workoutSound") !== "0";
+  if (!soundEnabled) return;
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+  oscillator.connect(audioCtx.destination);
+  oscillator.start();
+  oscillator.stop(audioCtx.currentTime + 0.2);
+}
+
+
+function vibrate() {
+  const vibrateEnabled = localStorage.getItem("workoutVibrate") !== "0";
+  if (vibrateEnabled && navigator.vibrate) {
+    navigator.vibrate(500);
+  }
+}
