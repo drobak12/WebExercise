@@ -130,18 +130,17 @@
       margin-top: 3rem;
     }
 
-  .info-bar {
-    display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-    background-color: var(--neutral);
-    padding: 1rem;
-    border-radius: 1rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    font-size: 1.1rem;
-  }
-
+    .info-bar {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      background-color: var(--neutral);
+      padding: 1rem;
+      border-radius: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      font-size: 1.1rem;
+    }
   </style>
 </head>
 
@@ -156,17 +155,22 @@
   <label for="rest-time">Rest time (seconds):</label><br />
   <input type="number" id="rest-time" value="90" min="10" max="300" /><br />
 
+  <div>
+    <label><input type="checkbox" id="enable-sound" checked /> Sound</label>
+    <label style="margin-left: 1rem;"><input type="checkbox" id="enable-vibrate" checked /> Vibrate</label>
+  </div>
+
   <button onclick="startWorkout()">Start Workout</button>
 </div>
 
 <div id="workout-screen" class="hidden">
-<div class="info-bar">
-  <div><strong>Level:</strong> <span id="current-level"></span></div>
-  <div><strong>Series:</strong> <span id="total-series"></span></div>
-  <div><strong>Total reps:</strong> <span id="total-reps"></span></div>
-</div>
+  <div class="info-bar">
+    <div><strong>Level:</strong> <span id="current-level"></span></div>
+    <div><strong>Series:</strong> <span id="total-series"></span></div>
+    <div><strong>Total reps:</strong> <span id="total-reps"></span></div>
+  </div>
 
-  <div id="live-total-time"></div>
+  <div id="live-total-time">Workout time: 0s</div>
 
   <div class="progress-bar-container hidden">
     <div class="progress-bar" id="progress-bar"></div>
@@ -232,16 +236,24 @@ for (let i = 1; i <= 50; i++) {
 const savedLevel = localStorage.getItem("workoutLevel");
 if (savedLevel) levelSelect.value = savedLevel;
 
+document.getElementById("enable-sound").checked = localStorage.getItem("workoutSound") !== "0";
+document.getElementById("enable-vibrate").checked = localStorage.getItem("workoutVibrate") !== "0";
+
 function startWorkout() {
   const level = parseInt(levelSelect.value);
   restSeconds = parseInt(restTimeInput.value) || 90;
+
+  const soundEnabled = document.getElementById("enable-sound").checked;
+  const vibrateEnabled = document.getElementById("enable-vibrate").checked;
+  localStorage.setItem("workoutSound", soundEnabled ? "1" : "0");
+  localStorage.setItem("workoutVibrate", vibrateEnabled ? "1" : "0");
+
   localStorage.setItem("workoutLevel", level);
   workout = new WorkoutPlan();
   reps = workout.getSeries(level);
   currentSeries = 0;
   workoutStartTime = Date.now();
   liveTotalTimeEl.textContent = "Workout time: 0s";
-
 
   currentLevelEl.textContent = level;
   totalSeriesEl.textContent = reps.length;
@@ -353,19 +365,22 @@ function endWorkout() {
 }
 
 function showMessage(msg) {
-const message = document.getElementById("message");
-    if (typeof msg === 'number') {
-      message.innerHTML = `
-        <span class="line1">Please complete</span><br />
-        <span class="line2">${msg}</span><br />
-        <span class="line3">repetitions</span>
-      `;
-    } else {
-      message.textContent = msg;
-    }
+  const message = document.getElementById("message");
+  if (typeof msg === 'number') {
+    message.innerHTML = `
+      <span class="line1">Please complete</span><br />
+      <span class="line2">${msg}</span><br />
+      <span class="line3">repetitions</span>
+    `;
+  } else {
+    message.textContent = msg;
+  }
 }
 
 function playBeep() {
+  const soundEnabled = localStorage.getItem("workoutSound") !== "0";
+  if (!soundEnabled) return;
+
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const oscillator = audioCtx.createOscillator();
   oscillator.type = "sine";
@@ -376,7 +391,8 @@ function playBeep() {
 }
 
 function vibrate() {
-  if (navigator.vibrate) {
+  const vibrateEnabled = localStorage.getItem("workoutVibrate") !== "0";
+  if (vibrateEnabled && navigator.vibrate) {
     navigator.vibrate(500);
   }
 }
