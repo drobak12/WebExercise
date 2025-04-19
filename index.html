@@ -14,6 +14,8 @@
     }
     h1 {
       margin-bottom: 1rem;
+      cursor: pointer;
+      color: #2c3e50;
     }
     select, input, button {
       font-size: 1.2rem;
@@ -34,11 +36,6 @@
       min-width: 40px;
       position: relative;
     }
-    .series-time-done {
-      font-size: 0.75rem;
-      color: #555;
-      margin-top: 2px;
-    }
     .active {
       background: #4caf50;
       color: white;
@@ -47,6 +44,20 @@
     .message {
       font-size: 1.5rem;
       margin: 2rem 0 1rem;
+    }
+    .message .line1 {
+      display: block;
+      font-size: 1.2rem;
+    }
+    .message .line2 {
+      display: block;
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 0.3rem 0;
+    }
+    .message .line3 {
+      display: block;
+      font-size: 1.2rem;
     }
     .hidden {
       display: none;
@@ -73,15 +84,21 @@
       margin-top: 1rem;
       color: #555;
     }
-    #total-time {
+    #total-time, #live-total-time, #summary-info {
       font-size: 1.2rem;
-      margin-top: 1rem;
+      margin-top: 0.5rem;
+      color: #333;
+    }
+    #feedback-question {
+      font-size: 1.4rem;
+      margin: 1.5rem 0 1rem;
+      font-weight: 500;
     }
   </style>
 </head>
 <body>
 
-<h1>Workout App</h1>
+<h1 onclick="goHome()">Workout App</h1>
 
 <div id="setup-screen">
   <label for="level">Choose your level:</label><br />
@@ -97,6 +114,7 @@
   <div>Level: <span id="current-level"></span></div>
   <div>Series: <span id="total-series"></span></div>
   <div>Total reps: <span id="total-reps"></span></div>
+  <div id="live-total-time"></div>
 
   <div class="progress-bar-container">
     <div class="progress-bar" id="progress-bar"></div>
@@ -113,7 +131,8 @@
 <div id="feedback-screen" class="hidden">
   <div class="message">Workout finished!!</div>
   <div id="total-time"></div>
-  <div>How was it?</div>
+  <div id="summary-info"></div>
+  <div id="feedback-question">How was it?</div>
   <div class="feedback-buttons">
     <button onclick="submitFeedback(-1)">Too Hard</button>
     <button onclick="submitFeedback(1)">Just Right</button>
@@ -134,6 +153,7 @@ const currentLevelEl = document.getElementById("current-level");
 const progressBar = document.getElementById("progress-bar");
 const seriesTimeEl = document.getElementById("series-time");
 const totalTimeEl = document.getElementById("total-time");
+const liveTotalTimeEl = document.getElementById("live-total-time");
 const seriesTimerContainer = document.getElementById("series-timer");
 
 let workout;
@@ -144,7 +164,7 @@ let restSeconds = 90;
 let workoutStartTime;
 let seriesStartTime;
 let seriesTimerInterval;
-let seriesTimes = [];
+let workoutTimerInterval;
 
 for (let i = 1; i <= 50; i++) {
   const opt = document.createElement("option");
@@ -164,20 +184,20 @@ function startWorkout() {
   reps = workout.getSeries(level);
   currentSeries = 0;
   workoutStartTime = Date.now();
-  seriesTimes = Array(reps.length).fill(null);
 
   currentLevelEl.textContent = level;
   totalSeriesEl.textContent = reps.length;
   totalRepsEl.textContent = reps.reduce((a, b) => a + b, 0);
 
   updateSeriesDisplay();
-  showMessage(`Please complete ${reps[currentSeries]} repetitions`);
+  showMessage(reps[currentSeries]);
   actionButton.textContent = "Done";
 
   document.getElementById("setup-screen").classList.add("hidden");
   document.getElementById("workout-screen").classList.remove("hidden");
 
   startSeriesTimer();
+  workoutTimerInterval = setInterval(updateLiveTotalTime, 1000);
 }
 
 function updateSeriesDisplay() {
@@ -185,10 +205,7 @@ function updateSeriesDisplay() {
   reps.forEach((rep, idx) => {
     const div = document.createElement("div");
     div.className = "series-item" + (idx === currentSeries ? " active" : "");
-    div.innerHTML = `${rep}`;
-    if (seriesTimes[idx] !== null) {
-      div.innerHTML += `<div class='series-time-done'>${seriesTimes[idx]}s</div>`;
-    }
+    div.textContent = rep;
     seriesList.appendChild(div);
   });
 
@@ -198,11 +215,7 @@ function updateSeriesDisplay() {
 
 function handleAction() {
   if (actionButton.textContent === "Done") {
-    const timeTaken = Math.floor((Date.now() - seriesStartTime) / 1000);
-    seriesTimes[currentSeries] = timeTaken;
-    updateSeriesDisplay();
     seriesTimerContainer.classList.add("hidden");
-
     if (currentSeries === reps.length - 1) {
       nextSeries();
     } else {
@@ -239,13 +252,20 @@ function startSeriesTimer() {
   }, 1000);
 }
 
+function updateLiveTotalTime() {
+  const totalSeconds = Math.floor((Date.now() - workoutStartTime) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  liveTotalTimeEl.textContent = `Workout time: ${minutes > 0 ? minutes + 'm ' : ''}${seconds}s`;
+}
+
 function nextSeries() {
   clearInterval(restTimer);
   clearInterval(seriesTimerInterval);
   currentSeries++;
   if (currentSeries < reps.length) {
     updateSeriesDisplay();
-    showMessage(`Please complete ${reps[currentSeries]} repetitions`);
+    showMessage(reps[currentSeries]);
     actionButton.textContent = "Done";
     startSeriesTimer();
   } else {
@@ -255,16 +275,34 @@ function nextSeries() {
 
 function endWorkout() {
   clearInterval(seriesTimerInterval);
+  clearInterval(workoutTimerInterval);
   progressBar.style.width = `100%`;
   document.getElementById("workout-screen").classList.add("hidden");
   document.getElementById("feedback-screen").classList.remove("hidden");
 
   const totalTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-  totalTimeEl.textContent = `Total workout time: ${totalTime} seconds`;
+  const minutes = Math.floor(totalTime / 60);
+  const seconds = totalTime % 60;
+  totalTimeEl.textContent = totalTime < 60
+    ? `Total workout time: ${totalTime} seconds`
+    : `Total workout time: ${minutes}m ${seconds}s`;
+
+  const level = currentLevelEl.textContent;
+  const series = totalSeriesEl.textContent;
+  const reps = totalRepsEl.textContent;
+  document.getElementById("summary-info").textContent = `Level: ${level} | Series: ${series} | Total reps: ${reps}`;
 }
 
 function showMessage(msg) {
-  message.textContent = msg;
+  if (typeof msg === 'number') {
+    message.innerHTML = `
+      <span class="line1">Please complete</span>
+      <span class="line2">${msg}</span>
+      <span class="line3">repetitions</span>
+    `;
+  } else {
+    message.textContent = msg;
+  }
 }
 
 function playBeep() {
@@ -288,6 +326,15 @@ function submitFeedback(change) {
   level = Math.max(1, Math.min(50, level + change));
   localStorage.setItem("workoutLevel", level);
   location.reload();
+}
+
+function goHome() {
+  clearInterval(restTimer);
+  clearInterval(seriesTimerInterval);
+  clearInterval(workoutTimerInterval);
+  document.getElementById("setup-screen").classList.remove("hidden");
+  document.getElementById("workout-screen").classList.add("hidden");
+  document.getElementById("feedback-screen").classList.add("hidden");
 }
 </script>
 
