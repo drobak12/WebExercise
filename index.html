@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workout App</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      padding: 1rem;
+      margin: 0;
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    select, input, button {
+      font-size: 1.2rem;
+      padding: 0.5rem 1rem;
+      margin: 0.5rem 0;
+    }
+    .series-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+    .series-item {
+      padding: 0.5rem 0.75rem;
+      background: #ddd;
+      border-radius: 0.5rem;
+      min-width: 40px;
+      position: relative;
+    }
+    .series-time-done {
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: 2px;
+    }
+    .active {
+      background: #4caf50;
+      color: white;
+      font-weight: bold;
+    }
+    .message {
+      font-size: 1.5rem;
+      margin: 2rem 0 1rem;
+    }
+    .hidden {
+      display: none;
+    }
+    .feedback-buttons button {
+      margin: 0.5rem;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 20px;
+      background: #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #4caf50;
+      transition: width 0.3s ease;
+    }
+    #series-timer {
+      font-size: 1.2rem;
+      margin-top: 1rem;
+      color: #555;
+    }
+    #total-time {
+      font-size: 1.2rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Workout App</h1>
+
+<div id="setup-screen">
+  <label for="level">Choose your level:</label><br />
+  <select id="level"></select><br />
+
+  <label for="rest-time">Rest time (seconds):</label><br />
+  <input type="number" id="rest-time" value="90" min="10" max="300" /><br />
+
+  <button onclick="startWorkout()">Start Workout</button>
+</div>
+
+<div id="workout-screen" class="hidden">
+  <div>Level: <span id="current-level"></span></div>
+  <div>Series: <span id="total-series"></span></div>
+  <div>Total reps: <span id="total-reps"></span></div>
+
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <div class="series-list" id="series-list"></div>
+
+  <div id="series-timer">Time on this series: <span id="series-time">0</span>s</div>
+
+  <div class="message" id="message"></div>
+  <button id="action-button" onclick="handleAction()">Done</button>
+</div>
+
+<div id="feedback-screen" class="hidden">
+  <div class="message">Workout finished!!</div>
+  <div id="total-time"></div>
+  <div>How was it?</div>
+  <div class="feedback-buttons">
+    <button onclick="submitFeedback(-1)">Too Hard</button>
+    <button onclick="submitFeedback(1)">Just Right</button>
+    <button onclick="submitFeedback(2)">Too Easy</button>
+  </div>
+</div>
+
+<script src="workoutplan.js"></script>
+<script>
+const levelSelect = document.getElementById("level");
+const restTimeInput = document.getElementById("rest-time");
+const message = document.getElementById("message");
+const seriesList = document.getElementById("series-list");
+const actionButton = document.getElementById("action-button");
+const totalSeriesEl = document.getElementById("total-series");
+const totalRepsEl = document.getElementById("total-reps");
+const currentLevelEl = document.getElementById("current-level");
+const progressBar = document.getElementById("progress-bar");
+const seriesTimeEl = document.getElementById("series-time");
+const totalTimeEl = document.getElementById("total-time");
+const seriesTimerContainer = document.getElementById("series-timer");
+
+let workout;
+let reps = [];
+let currentSeries = 0;
+let restTimer;
+let restSeconds = 90;
+let workoutStartTime;
+let seriesStartTime;
+let seriesTimerInterval;
+let seriesTimes = [];
+
+for (let i = 1; i <= 50; i++) {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = i;
+  levelSelect.appendChild(opt);
+}
+
+const savedLevel = localStorage.getItem("workoutLevel");
+if (savedLevel) levelSelect.value = savedLevel;
+
+function startWorkout() {
+  const level = parseInt(levelSelect.value);
+  restSeconds = parseInt(restTimeInput.value) || 90;
+  localStorage.setItem("workoutLevel", level);
+  workout = new WorkoutPlan();
+  reps = workout.getSeries(level);
+  currentSeries = 0;
+  workoutStartTime = Date.now();
+  seriesTimes = Array(reps.length).fill(null);
+
+  currentLevelEl.textContent = level;
+  totalSeriesEl.textContent = reps.length;
+  totalRepsEl.textContent = reps.reduce((a, b) => a + b, 0);
+
+  updateSeriesDisplay();
+  showMessage(`Please complete ${reps[currentSeries]} repetitions`);
+  actionButton.textContent = "Done";
+
+  document.getElementById("setup-screen").classList.add("hidden");
+  document.getElementById("workout-screen").classList.remove("hidden");
+
+  startSeriesTimer();
+}
+
+function updateSeriesDisplay() {
+  seriesList.innerHTML = "";
+  reps.forEach((rep, idx) => {
+    const div = document.createElement("div");
+    div.className = "series-item" + (idx === currentSeries ? " active" : "");
+    div.innerHTML = `${rep}`;
+    if (seriesTimes[idx] !== null) {
+      div.innerHTML += `<div class='series-time-done'>${seriesTimes[idx]}s</div>`;
+    }
+    seriesList.appendChild(div);
+  });
+
+  const progressPercent = (currentSeries / reps.length) * 100;
+  progressBar.style.width = `${progressPercent}%`;
+}
+
+function handleAction() {
+  if (actionButton.textContent === "Done") {
+    const timeTaken = Math.floor((Date.now() - seriesStartTime) / 1000);
+    seriesTimes[currentSeries] = timeTaken;
+    updateSeriesDisplay();
+    seriesTimerContainer.classList.add("hidden");
+
+    if (currentSeries === reps.length - 1) {
+      nextSeries();
+    } else {
+      startRest();
+    }
+  } else {
+    nextSeries();
+  }
+}
+
+function startRest() {
+  let seconds = restSeconds;
+  showMessage(`Please rest for ${seconds} seconds`);
+  actionButton.textContent = "Continue";
+  clearInterval(seriesTimerInterval);
+  restTimer = setInterval(() => {
+    seconds--;
+    showMessage(`Please rest for ${seconds} seconds`);
+    if (seconds <= 0) {
+      clearInterval(restTimer);
+      playBeep();
+      vibrate();
+    }
+  }, 1000);
+}
+
+function startSeriesTimer() {
+  seriesStartTime = Date.now();
+  seriesTimeEl.textContent = "0";
+  seriesTimerContainer.classList.remove("hidden");
+  seriesTimerInterval = setInterval(() => {
+    const seconds = Math.floor((Date.now() - seriesStartTime) / 1000);
+    seriesTimeEl.textContent = seconds;
+  }, 1000);
+}
+
+function nextSeries() {
+  clearInterval(restTimer);
+  clearInterval(seriesTimerInterval);
+  currentSeries++;
+  if (currentSeries < reps.length) {
+    updateSeriesDisplay();
+    showMessage(`Please complete ${reps[currentSeries]} repetitions`);
+    actionButton.textContent = "Done";
+    startSeriesTimer();
+  } else {
+    endWorkout();
+  }
+}
+
+function endWorkout() {
+  clearInterval(seriesTimerInterval);
+  progressBar.style.width = `100%`;
+  document.getElementById("workout-screen").classList.add("hidden");
+  document.getElementById("feedback-screen").classList.remove("hidden");
+
+  const totalTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+  totalTimeEl.textContent = `Total workout time: ${totalTime} seconds`;
+}
+
+function showMessage(msg) {
+  message.textContent = msg;
+}
+
+function playBeep() {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+  oscillator.connect(audioCtx.destination);
+  oscillator.start();
+  oscillator.stop(audioCtx.currentTime + 0.2);
+}
+
+function vibrate() {
+  if (navigator.vibrate) {
+    navigator.vibrate(500);
+  }
+}
+
+function submitFeedback(change) {
+  let level = parseInt(localStorage.getItem("workoutLevel") || "1");
+  level = Math.max(1, Math.min(50, level + change));
+  localStorage.setItem("workoutLevel", level);
+  location.reload();
+}
+</script>
+
+</body>
+</html>
