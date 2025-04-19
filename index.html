@@ -17,13 +17,27 @@
       --neutral: #f0f0f0;
     }
 
+    html {
+      height: 100%;
+    }
+
     body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
       font-family: 'Inter', sans-serif;
       background: linear-gradient(to bottom, var(--gradient-start), var(--gradient-end));
+      background-repeat: no-repeat;
+      background-attachment: fixed;
       color: var(--text);
       margin: 0;
       padding: 2rem;
       text-align: center;
+    }
+
+    main {
+      flex: 1;
     }
 
     h1 {
@@ -127,7 +141,8 @@
     footer {
       font-size: 0.9rem;
       color: #777;
-      margin-top: 3rem;
+      text-align: right;
+      margin-top: 2rem;
     }
 
     .info-bar {
@@ -143,7 +158,6 @@
     }
   </style>
 </head>
-
 <body>
 
 <h1 onclick="goHome()">Workout App</h1>
@@ -236,12 +250,16 @@ for (let i = 1; i <= 50; i++) {
 const savedLevel = localStorage.getItem("workoutLevel");
 if (savedLevel) levelSelect.value = savedLevel;
 
+const savedRestTime = localStorage.getItem("restTime");
+if (savedRestTime) restTimeInput.value = savedRestTime;
+
 document.getElementById("enable-sound").checked = localStorage.getItem("workoutSound") !== "0";
 document.getElementById("enable-vibrate").checked = localStorage.getItem("workoutVibrate") !== "0";
 
 function startWorkout() {
   const level = parseInt(levelSelect.value);
   restSeconds = parseInt(restTimeInput.value) || 90;
+  localStorage.setItem("restTime", restSeconds);
 
   const soundEnabled = document.getElementById("enable-sound").checked;
   const vibrateEnabled = document.getElementById("enable-vibrate").checked;
