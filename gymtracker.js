@@ -1,4 +1,16 @@
 // ---------- DOM references ----------
+
+// Restore localStorage values on load
+window.addEventListener("DOMContentLoaded", () => {
+  const storedRest = localStorage.getItem("restTime");
+  if (storedRest) restTimeInput.value = storedRest;
+
+  const sound = localStorage.getItem("workoutSound");
+  const vibrate = localStorage.getItem("workoutVibrate");
+
+  document.getElementById("enable-sound").checked = sound !== "0";
+  document.getElementById("enable-vibrate").checked = vibrate !== "0";
+});
 const restTimeInput        = document.getElementById("rest-time");
 const restMessage          = document.getElementById("rest-message");
 const workoutScreen        = document.getElementById("workout-screen");
@@ -24,6 +36,11 @@ let currentRow;                    // <tr> for current machine in table
 
 // ---------- Session control ----------
 function startSession() {
+  const soundEnabled = document.getElementById("enable-sound").checked;
+  const vibrateEnabled = document.getElementById("enable-vibrate").checked;
+  localStorage.setItem("workoutSound", soundEnabled ? "1" : "0");
+  localStorage.setItem("workoutVibrate", vibrateEnabled ? "1" : "0");
+  localStorage.setItem("restTime", restTimeInput.value);
   restSeconds = parseInt(restTimeInput.value, 10) || 90;
   setupScreen.classList.add("hidden");
   workoutScreen.classList.remove("hidden");
