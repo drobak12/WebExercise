@@ -129,17 +129,18 @@
 
 <div id="workout-screen" class="hidden">
   <div id="info-summary" class="info-summary">
-    Series <span id="series-current">1</span> of Machine <span id="current-machine">1</span>
+    Set <span id="series-current">1</span> of Machine <span id="current-machine">1</span>
   </div>
 
-  <div id="live-machine-time">Series time: 0s</div>
+  <div id="live-machine-time">Set time: 0s</div>
 
   <div class="message hidden" id="rest-message"></div>
 
   <div class="action-buttons">
-    <button onclick="addSeries()">Next Series</button>
+    <button onclick="addSeries()">Next Set</button>
     <button onclick="nextMachine()">Next Machine</button>
     <button onclick="endSession()">End Workout</button>
+    <button id="undo-button" onclick="undoLast()" disabled>Undo</button>
   </div>
 
   <h3>Workout Summary</h3>
@@ -147,13 +148,13 @@
     <thead>
       <tr>
         <th>Machine</th>
-        <th>Series</th>
+        <th>Sets</th>
       </tr>
     </thead>
     <tbody id="summary-table"></tbody>
   </table>
 
-  <div id="series-total-display">Total series completed: 0</div>
+  <div id="series-total-display">Total sets completed: 0</div>
 </div>
 
 <footer>
