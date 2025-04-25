@@ -1,18 +1,5 @@
+
 // ---------- DOM references ----------
-
-// Restore localStorage values on load
-window.addEventListener("DOMContentLoaded", () => {
-  const storedRest = localStorage.getItem("restTime");
-  if (storedRest) restTimeInput.value = storedRest;
-
-  const sound = localStorage.getItem("workoutSound");
-  const vibrate = localStorage.getItem("workoutVibrate");
-
-  document.getElementById("enable-sound").checked = sound !== "0";
-  document.getElementById("enable-vibrate").checked = vibrate !== "0";
-  updateUndoButton();
-});
-
 const restTimeInput        = document.getElementById("rest-time");
 const restMessage          = document.getElementById("rest-message");
 const workoutScreen        = document.getElementById("workout-screen");
@@ -26,123 +13,134 @@ const actionButtons        = document.querySelector(".action-buttons");
 const seriesTotalDisplay   = document.getElementById("series-total-display");
 const undoButton           = document.getElementById("undo-button");
 
+// ---------- Restore localStorage values on load ----------
+window.addEventListener("DOMContentLoaded", () => {
+  const storedRest = localStorage.getItem("restTime");
+  if (storedRest) restTimeInput.value = storedRest;
+
+  const sound    = localStorage.getItem("workoutSound");
+  const vibrate  = localStorage.getItem("workoutVibrate");
+  document.getElementById("enable-sound").checked   = sound   !== "0";
+  document.getElementById("enable-vibrate").checked = vibrate !== "0";
+});
+
 // ---------- State ----------
-let machineIdx   = 1;
-let seriesDoneTotal = 0;
-let seriesDoneOnMachine = 0;
+let machines         = [];  // [{name:"Machine 1", sets:[secs,...]}, ...]
+let currentMachineIdx = 0;  // index inside machines[]
 let seriesStartTime;
 let seriesTimerID;
 let restTimerID;
-let restSeconds  = 90;
-let sessionData  = [];
-let currentRow;
-let historyStack = [];
+let restSeconds   = 90;
 
 // ---------- Session control ----------
 function startSession() {
-  const soundEnabled = document.getElementById("enable-sound").checked;
+  const soundEnabled   = document.getElementById("enable-sound").checked;
   const vibrateEnabled = document.getElementById("enable-vibrate").checked;
-  localStorage.setItem("workoutSound", soundEnabled ? "1" : "0");
+  localStorage.setItem("workoutSound",   soundEnabled   ? "1" : "0");
   localStorage.setItem("workoutVibrate", vibrateEnabled ? "1" : "0");
   localStorage.setItem("restTime", restTimeInput.value);
+
   restSeconds = parseInt(restTimeInput.value, 10) || 90;
+
+  // inicializar historial
+  machines = [{ name: "Machine 1", sets: [] }];
+  currentMachineIdx = 0;
+
+  // mostrar pantalla
   setupScreen.classList.add("hidden");
   workoutScreen.classList.remove("hidden");
+
+  // construir tabla
+  summaryTable.innerHTML = "";
   addMachineRow();
-  startSeriesTimer();
   refreshHeader();
-  updateUndoButton();
+  startSeriesTimer();
+  undoButton.disabled = true;
 }
 
 function endSession() {
+  confirmCurrentSet();       // registra set activo
   stopSeriesTimer();
-  ++seriesDoneOnMachine;
-  ++seriesDoneTotal;
-  updateRow(seriesDoneOnMachine);
-  sessionData.push({ machine: machineIdx, series: seriesDoneOnMachine });
   clearInterval(restTimerID);
   hideActionButtons();
   buildSummaryScreen();
 }
 
 function buildSummaryScreen() {
+  const totalSets = machines.reduce((tot,m)=>tot+m.sets.length, 0);
+  let html = "<h2>Workout Complete!</h2>";
+  html += `<p><strong>Total Machines:</strong> ${machines.length}</p>`;
+  html += `<p><strong>Total Sets:</strong> ${totalSets}</p>`;
+  html += "<h3>Details</h3><table style='margin:0 auto;max-width:400px;'><thead><tr><th>Machine</th><th>Sets</th></tr></thead><tbody>";
+  machines.forEach(m=>{
+    html += `<tr><td>${m.name}</td><td>${m.sets.length}</td></tr>`;
+  });
+  html += "</tbody></table><br><button onclick='goHome()'>Start New Session</button>";
+
   const div = document.createElement("div");
-  div.innerHTML = `
-    <h2>Workout Complete!</h2>
-    <p><strong>Total Machines:</strong> ${sessionData.length}</p>
-    <p><strong>Total Sets:</strong> ${seriesDoneTotal}</p>
-    <h3>Details</h3>
-    <table style="margin:0 auto;max-width:400px;">
-      <thead><tr><th>Machine</th><th>Sets</th></tr></thead>
-      <tbody>${sessionData.map(m=>`<tr><td>Machine ${m.machine}</td><td>${m.series}</td></tr>`).join("")}</tbody>
-    </table><br>
-    <button onclick="goHome()">Start New Session</button>`;
+  div.innerHTML = html;
   workoutScreen.classList.add("hidden");
   document.body.insertBefore(div, document.querySelector("footer"));
 }
 
-function goHome() { location.reload(); }
+function goHome(){ location.reload(); }
 
 // ---------- Series & Machine ----------
-function addSeries() {
-  stopSeriesTimer();
-  historyStack.push({ machine: machineIdx, series: seriesDoneOnMachine });
-  ++seriesDoneOnMachine;
-  ++seriesDoneTotal;
-  updateRow(seriesDoneOnMachine);
-  refreshHeader();
-  startRest();
-  updateUndoButton();
+function confirmCurrentSet(){
+  // almacena set activo solo si aún no fue guardado durante un descanso
+  const elapsed = Math.floor((Date.now() - seriesStartTime)/1000);
+  machines[currentMachineIdx].sets.push(elapsed);
+  updateRow(machines[currentMachineIdx].sets.length);
+  undoButton.disabled = machines.length===1 && machines[0].sets.length===0;
 }
 
-function nextMachine() {
+function addSeries(){
   stopSeriesTimer();
-  historyStack.push({ machine: machineIdx, series: seriesDoneOnMachine });
-  ++seriesDoneOnMachine;
-  ++seriesDoneTotal;
-  updateRow(seriesDoneOnMachine);
-  sessionData.push({ machine: machineIdx, series: seriesDoneOnMachine });
-  machineIdx++;
-  seriesDoneOnMachine = 0;
+  confirmCurrentSet();
+  refreshHeader();
+  startRest();
+}
+
+function nextMachine(){
+  stopSeriesTimer();
+  confirmCurrentSet();
+
+  // crear nueva máquina
+  const machineName = `Machine ${machines.length+1}`;
+  machines.push({ name: machineName, sets: [] });
+  currentMachineIdx++;
+
   addMachineRow();
   refreshHeader();
   startRest();
-  updateUndoButton();
 }
 
-function undoLast() {
-  if (historyStack.length === 0) return;
+// ---------- Undo ----------
+function undoLast(){
+  if (machines.length === 0) return;
 
-  const last = historyStack.pop();
-  machineIdx = last.machine;
-  seriesDoneOnMachine = last.series;
-  --seriesDoneTotal;
+  stopSeriesTimer();
 
-  if (sessionData.length > 0 && sessionData[sessionData.length - 1].machine >= machineIdx) {
-    sessionData.pop();
-    summaryTable.removeChild(summaryTable.lastElementChild);
+  // caso 1: máquina actual tiene sets para quitar
+  if (machines[currentMachineIdx].sets.length > 0){
+      machines[currentMachineIdx].sets.pop();
+      updateRow(machines[currentMachineIdx].sets.length);
   }
 
-  if (seriesDoneOnMachine === 0) {
-    machineIdx--;
-    summaryTable.removeChild(summaryTable.lastElementChild);
-    currentRow = summaryTable.lastElementChild;
-    seriesDoneOnMachine = parseInt(currentRow.children[1].textContent, 10);
+  // si quedó sin sets y hay anterior, retrocedemos de máquina
+  if (machines[currentMachineIdx].sets.length === 0 && currentMachineIdx > 0){
+      machines.pop();                       // quitar máquina vacía
+      summaryTable.lastChild.remove();      // quitar fila de tabla
+      currentMachineIdx--;
   }
 
   refreshHeader();
-  updateRow(seriesDoneOnMachine);
-  updateUndoButton();
-}
-
-function updateUndoButton() {
-  if (undoButton) {
-    undoButton.disabled = historyStack.length === 0;
-  }
+  undoButton.disabled = machines.length===1 && machines[0].sets.length===0;
+  startSeriesTimer();
 }
 
 // ---------- Rest logic ----------
-function startRest() {
+function startRest(){
   clearInterval(restTimerID);
   hideActionButtons();
   infoSummaryEl.style.display = "none";
@@ -157,85 +155,80 @@ function startRest() {
   btn.onclick = finishRest;
   restMessage.after(btn);
 
-  restTimerID = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - restStart) / 1000);
-    const remaining = restSeconds - elapsed;
-    writeRest(remaining);
-    if (remaining <= 0) finishRest();
-  }, 1000);
+  restTimerID = setInterval(()=>{
+      const elapsed = Math.floor((Date.now()-restStart)/1000);
+      const remaining = restSeconds - elapsed;
+      writeRest(remaining);
+      if (remaining<=0) finishRest();
+  },1000);
 
-  function finishRest() {
-    clearInterval(restTimerID);
-    playBeep();
-    vibrate();
-
-    restMessage.classList.add("hidden");
-    btn.remove();
-    infoSummaryEl.style.display = "block";
-    seriesTimeLabel.style.display = "block";
-    showActionButtons();
-    startSeriesTimer();
+  function finishRest(){
+      clearInterval(restTimerID);
+      playBeep();
+      vibrate();
+      restMessage.classList.add("hidden");
+      btn.remove();
+      infoSummaryEl.style.display = "block";
+      seriesTimeLabel.style.display = "block";
+      showActionButtons();
+      startSeriesTimer();
   }
 }
 
-function writeRest(s) {
-  restMessage.innerHTML = `<span class='line1'>Please rest for</span><br><span class='line2'>${s}</span><br><span class='line3'>seconds</span>`;
+function writeRest(s){
+  restMessage.innerHTML = "<span class='line1'>Please rest for</span><br><span class='line2'>"+s+"</span><br><span class='line3'>seconds</span>";
 }
 
 // ---------- Timers ----------
-function startSeriesTimer() {
+function startSeriesTimer(){
   seriesStartTime = Date.now();
   tickSeriesTimer();
-  seriesTimerID = setInterval(tickSeriesTimer, 1000);
+  seriesTimerID = setInterval(tickSeriesTimer,1000);
 }
-function stopSeriesTimer() {
-  clearInterval(seriesTimerID);
-}
-function tickSeriesTimer() {
-  const s = Math.floor((Date.now() - seriesStartTime) / 1000);
-  seriesTimeLabel.textContent = `Sets time: ${s}s`;
+function stopSeriesTimer(){ clearInterval(seriesTimerID); }
+function tickSeriesTimer(){
+  const s = Math.floor((Date.now()-seriesStartTime)/1000);
+  seriesTimeLabel.textContent = "Set time: "+s+"s";
 }
 
 // ---------- UI helpers ----------
-function refreshHeader() {
-  currentMachineSpan.textContent = machineIdx;
-  seriesOrdinalSpan.textContent = seriesDoneOnMachine + 1;
-  seriesTotalDisplay.textContent = `Total sets completed: ${seriesDoneTotal}`;
+function refreshHeader(){
+  currentMachineSpan.textContent = currentMachineIdx + 1;
+  seriesOrdinalSpan.textContent  = machines[currentMachineIdx].sets.length + 1;
+  const totalSets = machines.reduce((tot,m)=>tot+m.sets.length, 0);
+  seriesTotalDisplay.textContent = "Total sets completed: "+ totalSets;
 }
 
-function addMachineRow() {
-  currentRow = document.createElement("tr");
-  currentRow.innerHTML = `<td>Machine ${machineIdx}</td><td>0</td>`;
-  summaryTable.appendChild(currentRow);
-}
-function updateRow(n) {
-  if (currentRow) currentRow.children[1].textContent = n;
+function addMachineRow(){
+  const row = document.createElement("tr");
+  row.innerHTML = "<td>"+machines[currentMachineIdx].name+"</td><td>0</td>";
+  summaryTable.appendChild(row);
+  // apunta a la fila actual
 }
 
-function hideActionButtons() {
-  actionButtons.style.display = "none";
+function updateRow(n){
+  const row = summaryTable.children[currentMachineIdx];
+  if (row) row.children[1].textContent = n;
 }
-function showActionButtons() {
-  actionButtons.style.display = "flex";
-}
+
+function hideActionButtons(){ actionButtons.style.display = "none"; }
+function showActionButtons(){ actionButtons.style.display = "flex"; }
 
 // ---------- Beep / Vibrate ----------
-function playBeep() {
+function playBeep(){
   const soundEnabled = localStorage.getItem("workoutSound") !== "0";
   if (!soundEnabled) return;
-
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioCtx.createOscillator();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
-  oscillator.connect(audioCtx.destination);
-  oscillator.start();
-  oscillator.stop(audioCtx.currentTime + 0.2);
+  const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(1000, ctx.currentTime);
+  osc.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime+0.2);
 }
-
-function vibrate() {
+function vibrate(){
   const vibrateEnabled = localStorage.getItem("workoutVibrate") !== "0";
-  if (vibrateEnabled && navigator.vibrate) {
-    navigator.vibrate(500);
+  if (vibrateEnabled && navigator.vibrate){
+      navigator.vibrate(500);
   }
 }
